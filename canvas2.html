@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title></title>
+</head>
+<body>
+
+  <canvas id="canvas" width="800" height="400"></canvas>
+  <div>
+    <button id="btn-forward" onclick="moveForwards(40)">Forwards</button>
+    <button id="btn-backward" onclick="moveBackwards(40)">Backwards</button>
+    <button id="btn-left" onclick="moveLeft(40)">Left</button>
+    <button id="btn-right" onclick="moveRight(40)">Right</button>
+    <button id="btn-toggle-pen" onclick="togglePen()">Toggle Pen</button>
+    <button id="btn-reset" onclick="reset()">Reset</button>
+    <input id="angle" type="text" onchange="setAngle()" placeholder="Angle" />
+  </div>
+  
+  <script type="text/javascript">
+    var canvas = document.getElementById("canvas");
+    var ctx = canvas.getContext("2d");
+    var G_MARGIN_X = 30;
+    var G_MARGIN_Y = 15;
+    var G_CANVAS_WIDTH = 600;
+    var G_CANVAS_HEIGHT = 300;
+    var G_CURRENT_X = G_MARGIN_X; // set the current x position to the left-most position of the canvas
+    var G_CURRENT_Y = G_MARGIN_Y; // set the current y position to the top-most position of the canvas.
+    var G_CURRENT_ANGLE_DEGS = 0;
+    var G_PEN_DOWN = false;
+    var DIRECTION_ANGLE = 0;
+
+    function init() {
+      var canvasCenterX = G_CANVAS_WIDTH / 2;
+      var canvasCenterY = G_CANVAS_HEIGHT / 2;
+
+      // make canvas area that we will be drawing within
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'red';
+      ctx.strokeRect(G_MARGIN_X, G_MARGIN_Y, G_CANVAS_WIDTH, G_CANVAS_HEIGHT);
+      // set the current point to the center of the canvas.
+      
+      setXY(canvasCenterX, canvasCenterY);
+      ctx.strokeStyle = 'blue';
+      // set the pen down now.
+      setPen(true);
+    }
+
+    function setAngle() {
+      var angleInput = document.getElementById("angle");
+      var inputValue = angleInput.value;
+      if(inputValue) {
+        console.log(inputValue);
+        G_CURRENT_ANGLE_DEGS = parseInt(inputValue, 10);
+      }
+    }
+
+    function setPen(isDown) {
+      G_PEN_DOWN = isDown;
+    }
+
+
+    function togglePen() {
+      setPen(!G_PEN_DOWN);
+    }
+
+    function setXY(x, y) {
+      G_CURRENT_X = x;
+      G_CURRENT_Y = y;
+    }
+
+    function reset() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      init();
+    }
+
+    function move(distance) {
+      var distanceX = calcMoveDistanceX(distance, DIRECTION_ANGLE);
+      var distanceY = calcMoveDistanceY(distance, DIRECTION_ANGLE);
+      var newX = G_CURRENT_X + distanceX;
+      var newY = G_CURRENT_Y - distanceY; // movement in the positive direction for y will result in a smaller value.
+      // if the pen is down, draw the line.
+      if(G_PEN_DOWN) {
+        makeLine(G_CURRENT_X, G_CURRENT_Y, newX, newY);
+      } else {
+        setXY(newX, newY);
+      }
+    }
+
+    function moveForwards(distance) {
+      DIRECTION_ANGLE = 0;
+      move(distance);
+    }
+
+    function moveBackwards(distance) {
+      DIRECTION_ANGLE = 180;
+      move(distance);
+    }
+
+    function moveLeft(distance) {
+      DIRECTION_ANGLE = 90;
+      move(distance);
+    }
+
+    function moveRight(distance) {
+      DIRECTION_ANGLE = 270;
+      move(distance);
+    }
+
+    function degsToRads(degrees) {
+      return degrees * (Math.PI / 180);
+    }
+
+    function calcSegmentLengthX(splitLineStartY, splitLineEndY) {
+      var lineLengthY = Math.abs(splitLineStartY - splitLineEndY);
+      return Math.abs(lineLengthY / (Math.tan(degsToRads(G_CURRENT_ANGLE_DEGS + DIRECTION_ANGLE))));
+    }
+
+    function calcSegmentLengthY(splitLineStartX, splitLineEndX) {
+      var lineLengthX = Math.abs(splitLineStartX - splitLineEndX);
+      return Math.abs(lineLengthX * (Math.tan(degsToRads(G_CURRENT_ANGLE_DEGS + DIRECTION_ANGLE))));
+    }
+
+    function distanceFromCenterX(locationX) {
+      return Math.abs((G_CANVAS_WIDTH / 2) - locationX)
+    }
+
+    function distanceFromCenterY(locationY) {
+      return Math.abs((G_CANVAS_HEIGHT / 2) - locationY)
+    }
+
+    function makeLine(startX, startY, endX, endY) {
+      var lineMustBeSplit = false;
+      var splitLineStartX = startX;
+      var splitLineEndX   = endX;
+      var splitLineStartY = startY;
+      var splitLineEndY   = endY;
+
+      while((endX > G_CANVAS_WIDTH) || (endX < 0)) {
+        if(endX > G_CANVAS_WIDTH) {
+          splitLineEndX = G_CANVAS_WIDTH;
+          startX = 0;
+          endX = endX - G_CANVAS_WIDTH;
+          lineMustBeSplit = true;
+        } else {
+          splitLineEndX = 0;
+          startX = G_CANVAS_WIDTH;
+          endX = G_CANVAS_WIDTH - splitLineStartX;
+          lineMustBeSplit = true;
+        }
+
+        var segmentYLength1 = calcSegmentLengthY(splitLineStartX, splitLineEndX);
+        var segmentYLength2 = calcSegmentLengthY(startX, endX);
+
+        if((G_CURRENT_ANGLE_DEGS % 90) !== 0) {
+          splitLineEndY = startY > endY ? startY - segmentYLength1 : startY + segmentYLength1;
+          startY = G_CANVAS_HEIGHT - (G_CANVAS_HEIGHT - splitLineEndY);
+          endY = splitLineStartY > splitLineEndY ? startY - segmentYLength2 : startY + segmentYLength2;
+        }
+      }
+
+      if(!lineMustBeSplit) {
+        while((endY > G_CANVAS_HEIGHT) || (endY < 0)) {
+          if(endY > G_CANVAS_HEIGHT) {
+            splitLineEndY = G_CANVAS_HEIGHT;
+            startY = 0;
+            endY = endY - G_CANVAS_HEIGHT;
+            lineMustBeSplit = true;
+          } else {
+            splitLineEndY = 0;
+            startY = G_CANVAS_HEIGHT;
+            endY = G_CANVAS_HEIGHT + endY;
+            lineMustBeSplit = true;
+          }
+
+          var segmentXLength1 = calcSegmentLengthX(splitLineStartY, splitLineEndY);
+          var segmentXLength2 = calcSegmentLengthX(startY, endY);
+
+          if((G_CURRENT_ANGLE_DEGS % 90) !== 0) {
+            splitLineEndX = startX > endX ? splitLineStartX - (segmentXLength1) : splitLineStartX + (segmentXLength1);
+            startX = G_CANVAS_WIDTH - (G_CANVAS_WIDTH - splitLineEndX);
+            endX = splitLineStartX > splitLineEndX ? startX - segmentXLength2 : startX + segmentXLength2;
+          }
+        }
+      }
+
+      // draw the first half of a split line if there is one.
+      if(lineMustBeSplit) {
+        drawSimpleLine(splitLineStartX, splitLineStartY, splitLineEndX, splitLineEndY);
+      }
+
+      drawSimpleLine(startX, startY, endX, endY);
+      
+      setXY(endX, endY);
+    }
+
+    function drawSimpleLine(startX, startY, endX, endY) {
+      ctx.beginPath();
+      ctx.moveTo(startX + G_MARGIN_X, startY + G_MARGIN_Y);
+      ctx.lineTo(endX + G_MARGIN_X, endY + G_MARGIN_Y);
+      ctx.stroke();
+    }
+
+    function calcMoveDistanceX(distance, additionalAngle) {
+      console.log(additionalAngle);
+      console.log(G_CURRENT_ANGLE_DEGS);
+      var angle = G_CURRENT_ANGLE_DEGS + additionalAngle;
+      console.log(angle);
+      return distance * Math.cos((degsToRads(angle)));
+    }
+
+    function calcMoveDistanceY(distance, additionalAngle) {
+      console.log(additionalAngle);
+      console.log(G_CURRENT_ANGLE_DEGS);
+      var angle = G_CURRENT_ANGLE_DEGS + additionalAngle;
+      console.log(angle);
+      return distance * Math.sin((degsToRads(angle)));
+    }
+
+    // actually initialize the canvas.
+    init();
+
+  </script>
+</body>
+</html>
